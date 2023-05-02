@@ -153,12 +153,15 @@ app.post("/auth/login", async (req, res) => {
 const dbUser = process.env.DB_USER
 const dbPassword = process.env.DB_PASS
 
+//Port Heroku
+const port = process.env.PORT
+
 mongoose
     .connect(
         `mongodb://${dbUser}:${dbPassword}@ac-1rdolrj-shard-00-00.nulb9ru.mongodb.net:27017,ac-1rdolrj-shard-00-01.nulb9ru.mongodb.net:27017,ac-1rdolrj-shard-00-02.nulb9ru.mongodb.net:27017/?ssl=true&replicaSet=atlas-3alxqw-shard-0&authSource=admin&retryWrites=true&w=majority`,
     )
     .then(() => {
-        app.listen(3000)
+        app.listen(port)
         console.log('Conectado!')
     })
     .catch((err) => console.log(err))
