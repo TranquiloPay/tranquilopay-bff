@@ -28,7 +28,7 @@ app.get("/user/:id", checkToken, async (req, res) => {
     //Check if user exists
     const user = await User.findById(id, '-password')
 
-    if(!user) {
+    if (!user) {
         return res.status(404).json({ msg: "Usuário não encontrado." })
     }
 
@@ -39,7 +39,7 @@ function checkToken(req, res, next) {
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(" ")[1]
 
-    if(!token) {
+    if (!token) {
         return res.status(401).json({ msg: 'Acesso negado!' })
     }
 
@@ -49,26 +49,60 @@ function checkToken(req, res, next) {
         jwt.verify(token, secret)
 
         next()
-    } catch(error) {
+    } catch (error) {
         res.status(400).json({ msg: "Token inválido!" })
     }
 }
 
 //Register User
 app.post('/auth/register', async (req, res) => {
-    const { name, email, password, confirmpassword } = req.body
+    const { name, cpf, state, city, street, district, number, email, phone, password, confirmpassword } = req.body
 
     //Validations
     if (!name) {
         return res.status(422).json({ msg: 'O nome é obrigatório!' })
     }
 
+    if (!cpf) {
+        return res.status(422).json({ msg: 'O CPF é obrigatório!' })
+    }
+
+    if (!state) {
+        return res.status(422).json({ msg: 'O estado é obrigatório!' })
+    }
+
+    if (!city) {
+        return res.status(422).json({ msg: 'A cidade é obrigatória!' })
+    }
+
+    if (!street) {
+        return res.status(422).json({ msg: 'A rua é obrigatória!' })
+    }
+
+    if (!district) {
+        return res.status(422).json({ msg: 'O bairro é obrigatório!' })
+    }
+
+    if (!number) {
+        return res.status(422).json({ msg: 'O número da casa é obrigatório!' })
+    }
+
     if (!email) {
         return res.status(422).json({ msg: 'O email é obrigatório!' })
     }
 
+    if (!phone) {
+        return res.status(422).json({ msg: 'O telefone é obrigatório!' })
+    }
+
     if (!password) {
         return res.status(422).json({ msg: 'A senha é obrigatória!' })
+    }
+
+    let regex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[!@#$%*()_+^&}{:;?.])(?:([0-9a-zA-Z!@#$%;*(){}_+^&])(?!\1)){8,}$/;
+
+    if (!(regex.test(password))) {
+        return res.status(422).json({ msg: 'A senha deve conter pelo menos uma letra maiúscula e uma minúscula, um número, um caractere especial e mais de 8 caracteres!' })
     }
 
     if (password !== confirmpassword) {
@@ -89,7 +123,15 @@ app.post('/auth/register', async (req, res) => {
     //Create user
     const user = new User({
         name,
+        cpf,
+        state,
+        city,
+        street,
+        district,
+        number,
+        complement,
         email,
+        phone,
         password: passwordHash,
     })
 
