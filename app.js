@@ -1,214 +1,291 @@
 /* imports */
-require('dotenv').config()
-const express = require('express')
-const cors = require('cors');
-const mongoose = require('mongoose')
-const bcrypt = require('bcrypt')
-const jwt = require('jsonwebtoken')
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
-const app = express()
+const app = express();
 
 app.use(cors());
 
 //Config JSON response
-app.use(express.json())
+app.use(express.json());
 
 //Models
-const User = require('./models/User')
+const User = require("./models/User");
 
 //Open Route - Public Route
-app.get('/', (req, res) => {
-    res.status(200).json({ msg: "API TranquiloPay" })
-})
+app.get("/", (req, res) => {
+  res.status(200).json({ msg: "API TranquiloPay" });
+});
 
 //Private Route
 app.get("/user/:id", checkToken, async (req, res) => {
-    const id = req.params.id
+  const id = req.params.id;
 
-    //Check if user exists
-    const user = await User.findById(id, '-password')
+  //Check if user exists
+  const user = await User.findById(id, "-password");
 
-    if (!user) {
-        return res.status(404).json({ msg: "Usuário não encontrado." })
-    }
+  if (!user) {
+    return res.status(404).json({ msg: "Usuário não encontrado." });
+  }
 
-    res.status(200).json({ user })
-})
+  res.status(200).json({ user });
+});
 
 function checkToken(req, res, next) {
-    const authHeader = req.headers['authorization']
-    const token = authHeader && authHeader.split(" ")[1]
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
 
-    if (!token) {
-        return res.status(401).json({ msg: 'Acesso negado!' })
-    }
+  if (!token) {
+    return res.status(401).json({ msg: "Acesso negado!" });
+  }
 
-    try {
-        const secret = process.env.SECRET
+  try {
+    const secret = process.env.SECRET;
 
-        jwt.verify(token, secret)
+    jwt.verify(token, secret);
 
-        next()
-    } catch (error) {
-        res.status(400).json({ msg: "Token inválido!" })
-    }
+    next();
+  } catch (error) {
+    res.status(400).json({ msg: "Token inválido!" });
+  }
 }
 
+// Verify if CPF or Email already exists
+app.get("/user/exists/:cpfOrEmail", async (req, res) => {
+  const cpfOrEmail = req.params.cpfOrEmail;
+  
+  User.findOne(
+    {
+      $or: [{ cpf: cpfOrEmail }, { email: cpfOrEmail }]
+    },
+    (err, user) => {
+      if (err) {
+        return res.status(500).json({
+          msg: "Aconteceu um erro inesperado, por favor, tente novamente mais tarde",
+        });
+      }
+
+      if (user) {
+        return res.status(200).json({ isUserAlreadyExists: true });
+      }
+
+      res.status(200).json({ isUserAlreadyExists: false });
+    }
+  );
+});
+
 //Register User
-app.post('/auth/register', async (req, res) => {
-    const { name, cpf, state, city, street, district, number, email, phone, password, confirmpassword } = req.body
+app.post("/auth/register", async (req, res) => {
+  const requiredFields = [
+    "name",
+    "cpf",
+    "state",
+    "city",
+    "street",
+    "district",
+    "number",
+    "email",
+    "phone",
+    "password",
+    "confirmpassword",
+  ];
 
-    //Validations
-    if (!name) {
-        return res.status(422).json({ msg: 'O nome é obrigatório!' })
+  const errors = [];
+
+  for (const field of requiredFields) {
+    if (!req.body[field]) {
+      errors.push(`O campo ${field} é obrigatório!`);
     }
+  }
 
-    if (!cpf) {
-        return res.status(422).json({ msg: 'O CPF é obrigatório!' })
-    }
+  if (errors.length > 0) {
+    return res.status(422).json({ errors });
+  }
 
-    if (!state) {
-        return res.status(422).json({ msg: 'O estado é obrigatório!' })
-    }
+  const { body } = req;
 
-    if (!city) {
-        return res.status(422).json({ msg: 'A cidade é obrigatória!' })
-    }
+  let regex =
+    /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[!@#$%*()_+^&}{:;?.])(?:([0-9a-zA-Z!@#$%;*(){}_+^&])(?!\1)){8,}$/;
 
-    if (!street) {
-        return res.status(422).json({ msg: 'A rua é obrigatória!' })
-    }
+  if (!regex.test(body.password)) {
+    return res.status(422).json({
+      msg: "A senha deve conter pelo menos uma letra maiúscula e uma minúscula, um número, um caractere especial e mais de 8 caracteres!",
+    });
+  }
 
-    if (!district) {
-        return res.status(422).json({ msg: 'O bairro é obrigatório!' })
-    }
+  if (body.password !== body.confirmpassword) {
+    return res.status(422).json({ msg: "As senhas não conferem!" });
+  }
 
-    if (!number) {
-        return res.status(422).json({ msg: 'O número da casa é obrigatório!' })
-    }
+  //Check if user dont exists
+  const checkIfUserExists = async () => {
+    const isEmailAlreadyExists = await User.findOne({
+      email: body.email,
+    }).exec();
+    const isCpfAlreadyExists = await User.findOne({ cpf: body.cpf }).exec();
+    return isEmailAlreadyExists && isCpfAlreadyExists;
+  };
 
-    if (!email) {
-        return res.status(422).json({ msg: 'O email é obrigatório!' })
-    }
+  const userExists = await checkIfUserExists();
 
-    if (!phone) {
-        return res.status(422).json({ msg: 'O telefone é obrigatório!' })
-    }
+  if (userExists) {
+    return res.status(422).json({ msg: "Usuário já cadastrado." });
+  }
 
-    if (!password) {
-        return res.status(422).json({ msg: 'A senha é obrigatória!' })
-    }
+  //Create password
+  const salt = await bcrypt.genSalt(12);
+  const passwordHash = await bcrypt.hash(body.password, salt);
+  body.password = passwordHash;
 
-    let regex = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[!@#$%*()_+^&}{:;?.])(?:([0-9a-zA-Z!@#$%;*(){}_+^&])(?!\1)){8,}$/;
+  //Create user
+  const user = new User(body);
 
-    if (!(regex.test(password))) {
-        return res.status(422).json({ msg: 'A senha deve conter pelo menos uma letra maiúscula e uma minúscula, um número, um caractere especial e mais de 8 caracteres!' })
-    }
+  try {
+    await user.save();
 
-    if (password !== confirmpassword) {
-        return res.status(422).json({ msg: 'As senhas não conferem!' })
-    }
+    res.status(201).json({ msg: "Usuário criado com sucesso!" });
+  } catch (error) {
+    console.log(error);
 
-    //Check if user dont exists
-    const userExists = await User.findOne({ email: email })
-
-    if (userExists) {
-        return res.status(422).json({ msg: 'Email já cadastrado, por favor, insira outro email.' })
-    }
-
-    //Create password
-    const salt = await bcrypt.genSalt(12)
-    const passwordHash = await bcrypt.hash(password, salt)
-
-    //Create user
-    const user = new User({
-        name,
-        cpf,
-        state,
-        city,
-        street,
-        district,
-        number,
-        complement,
-        email,
-        phone,
-        password: passwordHash,
-    })
-
-    try {
-        await user.save()
-
-        res.status(201).json({ msg: 'Usuário criado com sucesso!' })
-    } catch (error) {
-        console.log(error)
-
-        res.status(500).json({
-            msg: 'Aconteceu um erro inesperado, por favor, tente novamente mais tarde',
-        })
-    }
-})
+    res.status(500).json({
+      msg: "Aconteceu um erro inesperado, por favor, tente novamente mais tarde",
+    });
+  }
+});
 
 //Login User
 app.post("/auth/login", async (req, res) => {
-    const { email, password } = req.body
+  const { email, password } = req.body;
 
-    //Validations
-    if (!email) {
-        return res.status(422).json({ msg: 'O email é obrigatório!' })
-    }
+  //Validations
+  if (!email) {
+    return res.status(422).json({ msg: "O email é obrigatório!" });
+  }
 
-    if (!password) {
-        return res.status(422).json({ msg: 'A senha é obrigatória!' })
-    }
+  if (!password) {
+    return res.status(422).json({ msg: "A senha é obrigatória!" });
+  }
 
-    //Check if user exists
-    const user = await User.findOne({ email: email })
+  //Check if user exists
+  const user = await User.findOne({ email: email });
 
-    if (!user) {
-        return res.status(404).json({ msg: 'Usuário não encontrado.' })
-    }
+  if (!user) {
+    return res.status(404).json({ msg: "Usuário não encontrado." });
+  }
 
-    //Check if password match
-    const checkPassword = await bcrypt.compare(password, user.password)
+  //Check if password match
+  const checkPassword = await bcrypt.compare(password, user.password);
 
-    if (!checkPassword) {
-        return res.status(422).json({ msg: 'Senha inválida.' })
-    }
+  if (!checkPassword) {
+    return res.status(422).json({ msg: "Senha inválida." });
+  }
 
-    try {
-        const secret = process.env.SECRET
+  try {
+    const secret = process.env.SECRET;
 
-        const token = jwt.sign(
-            {
-                id: user._id,
-            },
-            secret,
-        )
-        res.status(200).json({ msg: "Autenticação realizada com sucesso!", token })
-    } catch (error) {
-        console.log(error)
+    const token = jwt.sign(
+      {
+        id: user._id,
+      },
+      secret
+    );
+    res.status(200).json({ msg: "Autenticação realizada com sucesso!", token });
+  } catch (error) {
+    console.log(error);
 
-        res.status(500).json({
-            msg: 'Aconteceu um erro inesperado, por favor, tente novamente mais tarde',
-        })
-    }
-})
+    res.status(500).json({
+      msg: "Aconteceu um erro inesperado, por favor, tente novamente mais tarde",
+    });
+  }
+});
+
+//Create Debit
+app.post("/payments", async (req, res) => {
+  const requestBody = req.body;
+
+  // Define a lista de validações
+  const validations = [
+    {
+      field: requestBody.customer,
+      fieldName: "customer",
+      errorMsg: "O customer é obrigatório!",
+    },
+    {
+      field: requestBody.billingType,
+      fieldName: "billingType",
+      errorMsg: "O billingType é obrigatório!",
+    },
+    {
+      field: requestBody.dueDate,
+      fieldName: "dueDate",
+      errorMsg: "O dueDate é obrigatório!",
+    },
+    {
+      field: requestBody.value,
+      fieldName: "value",
+      errorMsg: "O value é obrigatório!",
+    },
+  ];
+
+  // Verifica se algum campo obrigatório está faltando
+  const missingFields = validations.filter((validation) => !validation.field);
+  if (missingFields.length > 0) {
+    return res.status(422).json({ msg: missingFields[0].errorMsg });
+  }
+
+  // Array com os valores válidos para billingType
+  const validBillingTypes = ["BOLETO", "CREDIT_CARD", "PIX", "UNDEFINED"];
+
+  // Verifica se o valor do campo billingType é válido
+  if (!validBillingTypes.includes(requestBody.billingType)) {
+    return res.status(422).json({ msg: "O billingType é inválido!" });
+  }
+
+  try {
+    const response = await axios.post(
+      "https://www.asaas.com/api/v3/payments",
+      requestBody,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          access_token: apiKey,
+        },
+      }
+    );
+
+    res.status(200).json({
+      msg: "Débito criado com sucesso!",
+      url: response.data.invoiceUrl,
+      data: response.data,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      msg: error.message,
+    });
+  }
+});
 
 //Credencials
-const dbUser = process.env.DB_USER
-const dbPassword = process.env.DB_PASS
+const dbUser = process.env.DB_USER;
+const dbPassword = process.env.DB_PASS;
+const apiKey = process.env.API_KEY;
 
 //Port Heroku
-const port = process.env.PORT
+const port = 3000;
 
 mongoose
-    .connect(
-        `mongodb://${dbUser}:${dbPassword}@ac-1rdolrj-shard-00-00.nulb9ru.mongodb.net:27017,ac-1rdolrj-shard-00-01.nulb9ru.mongodb.net:27017,ac-1rdolrj-shard-00-02.nulb9ru.mongodb.net:27017/?ssl=true&replicaSet=atlas-3alxqw-shard-0&authSource=admin&retryWrites=true&w=majority`,
-    )
-    .then(() => {
-        app.listen(port)
-        console.log('Conectado!')
-    })
-    .catch((err) => console.log(err))
-
-
+  .connect(
+    `mongodb://${dbUser}:${dbPassword}@ac-1rdolrj-shard-00-00.nulb9ru.mongodb.net:27017,ac-1rdolrj-shard-00-01.nulb9ru.mongodb.net:27017,ac-1rdolrj-shard-00-02.nulb9ru.mongodb.net:27017/?ssl=true&replicaSet=atlas-3alxqw-shard-0&authSource=admin&retryWrites=true&w=majority`
+  )
+  .then(() => {
+    app.listen(port);
+    console.log(port);
+    console.log("Conectado!");
+  })
+  .catch((err) => console.log(err));
