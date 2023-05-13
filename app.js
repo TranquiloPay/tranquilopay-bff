@@ -109,8 +109,7 @@ app.post("/auth/register", async (req, res) => {
 
   const { body } = req;
 
-  let regex =
-    /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[!@#$%*()_+^&}{:;?.])(?:([0-9a-zA-Z!@#$%;*(){}_+^&])(?!\1)){8,}$/;
+  let regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[~!@#$%^&*()_\-+=|{}[\]:;<>?,./])(?!.*\s).{8,}$/;
 
   if (!regex.test(body.password)) {
     return res.status(422).json({
