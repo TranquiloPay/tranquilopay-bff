@@ -55,32 +55,39 @@ function checkToken(req, res, next) {
   }
 }
 
-// Verify if CPF or Email already exists
-app.get("/user/exists/:cpfOrEmail", async (req, res) => {
-  const cpfOrEmail = req.params.cpfOrEmail;
-  
-  User.findOne(
-    {
-      $or: [{ cpf: cpfOrEmail }, { email: cpfOrEmail }]
-    },
-    (err, user) => {
-      if (err) {
-        return res.status(500).json({
-          msg: "Aconteceu um erro inesperado, por favor, tente novamente mais tarde",
-        });
-      }
+const checkUserExists = async (req, res, next) => {
+  const identifier = req.params.identifier;
 
-      if (user) {
-        return res.status(200).json({ isUserAlreadyExists: true });
-      }
+  try {
+    const user = await User.findOne({
+      $or: [{ cpf: identifier }, { email: identifier }],
+    }).exec();
 
-      res.status(200).json({ isUserAlreadyExists: false });
+    if (user) {
+      req.isUserAlreadyExists = true;
+    } else {
+      req.isUserAlreadyExists = false;
     }
-  );
+
+    next();
+  } catch (error) {
+    res.status(500).json({
+      msg: "Aconteceu um erro inesperado, por favor, tente novamente mais tarde",
+    });
+  }
+};
+
+// Verify if CPF or Email already exists
+app.get("/user/exists/:identifier/", checkUserExists, (req, res) => {
+  res.status(200).json({ isUserAlreadyExists: req.isUserAlreadyExists });
 });
 
 //Register User
-app.post("/auth/register", async (req, res) => {
+app.post("/auth/register", checkUserExists, async (req, res) => {
+  if (req.isUserAlreadyExists) {
+    return res.status(422).json({ msg: "Usuário já cadastrado." });
+  }
+
   const requiredFields = [
     "name",
     "cpf",
@@ -109,7 +116,8 @@ app.post("/auth/register", async (req, res) => {
 
   const { body } = req;
 
-  let regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[~!@#$%^&*()_\-+=|{}[\]:;<>?,./])(?!.*\s).{8,}$/;
+  let regex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[~!@#$%^&*()_\-+=|{}[\]:;<>?,./])(?!.*\s).{8,}$/;
 
   if (!regex.test(body.password)) {
     return res.status(422).json({
@@ -119,21 +127,6 @@ app.post("/auth/register", async (req, res) => {
 
   if (body.password !== body.confirmpassword) {
     return res.status(422).json({ msg: "As senhas não conferem!" });
-  }
-
-  //Check if user dont exists
-  const checkIfUserExists = async () => {
-    const isEmailAlreadyExists = await User.findOne({
-      email: body.email,
-    }).exec();
-    const isCpfAlreadyExists = await User.findOne({ cpf: body.cpf }).exec();
-    return isEmailAlreadyExists && isCpfAlreadyExists;
-  };
-
-  const userExists = await checkIfUserExists();
-
-  if (userExists) {
-    return res.status(422).json({ msg: "Usuário já cadastrado." });
   }
 
   //Create password
