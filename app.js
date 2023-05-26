@@ -6,6 +6,8 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
+const crypto = require('crypto');
+const mailer = require('./modules/mailer');
 
 const app = express();
 
@@ -263,13 +265,89 @@ app.post("/payments", async (req, res) => {
   }
 });
 
+//Esqueci minha senha
+app.post('/auth/forgot_password', async (req, res) => {
+    const { email } = req.body; //E-mail que quer recuperar a senha
+
+    try {
+        const user = await User.findOne({ email }); //Faz a busca do usuário no Banco de dados, verificando se ele está cadastrado
+
+        if(!user) 
+            return res.status(400).send({ error: 'Usuário não encontrado em nossa base de dados'});
+
+        //Geração do token para o usuário poder alterar a senha 
+        const token = crypto.randomBytes(20).toString('hex');
+
+        //Data e tempo de expiração do token
+        const now = new Date();
+        now.setHours(now.getHours() + 1);
+
+        await User.findByIdAndUpdate(user.id, {
+            '$set': {
+                passwordResetToken: token,
+                passwordResetExpires: now,
+                  }
+            }, { new: true, useFindAndModify: false }
+            );
+
+        //console.log(token, now);
+
+        mailer.sendMail({
+            to: email, 
+            subject: 'Recuperação de acesso',
+            from: 'tranquilopay@gmail.com',
+            template: 'auth/forgot_password',
+            context: { token },
+        }, (err) => {
+           if (err) 
+            return res.status(400).send({ error: 'Não foi possivel enviar o e-mail de recuperação de senha'});
+
+            return res.status(200).send({ status: 'E-mail enviado com sucesso'});
+        });
+    } catch (err) {
+        res.status(400).send({ error: 'Falha no sistema de recuperação de senha, tente novamente mais tarde'});
+    }
+});
+
+//Cadastro da nova senha
+app.post('/auth/reset_password', async (req, res) => {
+    const { email, token, password} = req.body;
+
+    try {
+        const user = await User.findOne({ email })
+            .select('+passwordResetToken passwordResetExpires');
+
+            console.log(token, user.passwordResetToken);
+        if(!user) 
+            return res.status(400).send({ error: 'Usuário não encontrado em nossa base de dados'});
+
+        if(token !== user.passwordResetToken)
+            return res.status(400).send({ error: 'O tokken informado não é valido'});
+
+        //Verificação da expiração do token
+        const now = new Date();
+
+        if (now > user.passwordResetExpires)
+        return res.status(400).send({ error: 'O tokken informado está espirado, por favor gere um novo'});
+
+        user.password = password;
+
+        await user.save();
+
+        return res.status(200).send({ status: 'Senha alterada com sucesso'});
+
+    } catch (err) {
+        return res.status(400).send({ error: 'Não foi possivel alterar sua senha, tente novamente mais tarde'});
+    }
+});
+
 //Credencials
 const dbUser = process.env.DB_USER;
 const dbPassword = process.env.DB_PASS;
 const apiKey = process.env.API_KEY;
 
 //Port Heroku
-const port = 3000;
+const port = process.env.PORT;//3000;
 
 mongoose
   .connect(
