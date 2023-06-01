@@ -59,10 +59,12 @@ function checkToken(req, res, next) {
 
 const checkUserExists = async (req, res, next) => {
   const identifier = req.params.identifier;
+  const email = req.body.email;
+  const cpf = req.body.cpf;
 
   try {
     const user = await User.findOne({
-      $or: [{ cpf: identifier }, { email: identifier }],
+      $or: [{ cpf: identifier ?? cpf }, { email: identifier ?? email }],
     }).exec();
 
     if (user) {
@@ -355,7 +357,7 @@ mongoose
   )
   .then(() => {
     app.listen(port);
-    console.log(port);
+    console.log(`Envie requisições para: http://localhost:${port}/`);
     console.log("Conectado!");
   })
   .catch((err) => console.log(err));
