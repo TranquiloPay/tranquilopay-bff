@@ -11,7 +11,15 @@ const User = mongoose.model('User', {
     complement: String,
     email: String,
     phone: String,
-    password: String
+    password: String,
+    passwordResetToken: {
+        type:String,
+        select: false,
+    },
+    passwordResetExpires: {  //Guarda a data de expiração do token
+        type: Date,
+        select: false,
+    },
 })
 
 module.exports = User
