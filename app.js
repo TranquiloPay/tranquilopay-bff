@@ -56,14 +56,19 @@ function checkToken(req, res, next) {
 }
 
 const checkUserExists = async (req, res, next) => {
-  const identifier = req.params.identifier;
-  const email = req.body.email;
-  const cpf = req.body.cpf;
+  const { email, cpf } = req.body;
 
   try {
-    const user = await User.findOne({
-      $or: [{ cpf: identifier ?? cpf }, { email: identifier ?? email }],
-    }).exec();
+    let user;
+    if (cpf && email) {
+      user = await User.findOne({
+        $or: [{ cpf }, { email }],
+      }).exec();
+    } else {
+      return res.status(400).json({
+        msg: "É necessário fornecer o CPF e o e-mail para verificar a existência do usuário.",
+      });
+    }
 
     if (user) {
       req.isUserAlreadyExists = true;
@@ -80,6 +85,7 @@ const checkUserExists = async (req, res, next) => {
 };
 
 // Verify if CPF or Email already exists
+// ToDo: implement this method correct
 app.get("/user/exists/:identifier/", checkUserExists, (req, res) => {
   res.status(200).json({ isUserAlreadyExists: req.isUserAlreadyExists });
 });
@@ -93,13 +99,7 @@ app.post("/auth/register", checkUserExists, async (req, res) => {
   const requiredFields = [
     "name",
     "cpf",
-    "state",
-    "city",
-    "street",
-    "district",
-    "number",
     "email",
-    "phone",
     "password",
     "confirmpassword",
   ];
@@ -237,7 +237,7 @@ app.post("/payments", async (req, res) => {
 
   // Verifica se o valor do campo billingType é válido
   if (!validBillingTypes.includes(requestBody.billingType)) {
-    return res.status(422).json({ msg: "O billingType é inválido!" });
+    return res.status(422).json({ msg: "O Tipo de pagamento é inválido!" });
   }
 
   try {
