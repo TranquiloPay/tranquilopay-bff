@@ -205,14 +205,14 @@ const validateRegistration = async (req, res, next) => {
 
 // Create Customer in Asaas
 const createCustomer = async (req, res, next) => {
-  const { name, cpfCnpj, email } = req.body;
+  const { name, cpf, email } = req.body;
 
   try {
     const response = await axios.post(
       "https://www.asaas.com/api/v3/customers",
       {
         name,
-        cpfCnpj,
+        cpf,
         email,
       },
       {
@@ -314,6 +314,8 @@ app.post(
   async (req, res) => {
     // Create user
     const user = new User(req.body);
+
+    console.log('cpf do mulek', user)
 
     // Save user in database
     try {
