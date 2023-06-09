@@ -20,6 +20,7 @@ const User = mongoose.model('User', {
         type: Date,
         select: false,
     },
+    customerId: String,
 })
 
 module.exports = User
