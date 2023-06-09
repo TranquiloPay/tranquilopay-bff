@@ -357,6 +357,13 @@ app.post("/auth/login", async (req, res) => {
     return res.status(422).json({ msg: "Senha inválida." });
   }
 
+  const userObj = {
+    name: user.name,
+    cpf: user.cpf,
+    email: user.email,
+    customerId: user.customerId,
+  }
+
   try {
     const secret = process.env.SECRET;
 
@@ -366,7 +373,7 @@ app.post("/auth/login", async (req, res) => {
       },
       secret
     );
-    res.status(200).json({ msg: "Autenticação realizada com sucesso!", token });
+    res.status(200).json({ msg: "Autenticação realizada com sucesso!", token, user: userObj });
   } catch (error) {
     console.log(error);
 
