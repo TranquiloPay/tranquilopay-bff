@@ -212,7 +212,7 @@ const createCustomer = async (req, res, next) => {
       "https://www.asaas.com/api/v3/customers",
       {
         name,
-        cpf,
+        cpfCnpj: cpf,
         email,
       },
       {
