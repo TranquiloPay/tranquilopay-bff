@@ -227,7 +227,7 @@ const createCustomer = async (req, res, next) => {
     next();
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ msg: "Ocorreu um erro ao criar o cliente." });
+    return res.status(error.status).json({ msg: "Ocorreu um erro ao criar o cliente." });
   }
 };
 
@@ -290,7 +290,7 @@ app.get("/customers", async (req, res) => {
       }
     );
 
-    res.status(200).json({
+    res.status(response.status).json({
       msg: response.data.totalCount
         ? "CPF já cadastrado!"
         : "CPF não cadastrado!",
@@ -299,7 +299,31 @@ app.get("/customers", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    res.status(500).json({
+    res.status(error.status).json({
+      msg: error.message,
+    });
+  }
+});
+
+// Get all payments from Asaas by Customer ID
+app.get("/payments", async (req, res) => {
+  try {
+    const response = await axios.get(
+      "https://www.asaas.com/api/v3/payments",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          access_token: apiKey,
+        },
+        data: req.body,
+      }
+    );
+
+    res.status(response.status).json({
+      billings: response.data,
+    });
+  } catch (error) {
+    res.status(error.status).json({
       msg: error.message,
     });
   }
@@ -314,8 +338,6 @@ app.post(
   async (req, res) => {
     // Create user
     const user = new User(req.body);
-
-    console.log('cpf do mulek', user)
 
     // Save user in database
     try {
@@ -439,14 +461,14 @@ app.post("/payments", async (req, res) => {
       }
     );
 
-    res.status(200).json({
+    res.status(response.status).json({
       msg: "Débito criado com sucesso!",
       url: response.data.invoiceUrl,
       data: response.data,
     });
   } catch (error) {
     console.log(error);
-    res.status(500).json({
+    res.status(error.status).json({
       msg: error.message,
     });
   }
