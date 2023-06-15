@@ -307,15 +307,15 @@ app.get("/customers", async (req, res) => {
 
 // Get all payments from Asaas by Customer ID
 app.get("/payments", async (req, res) => {
+  const { customerId } = req.query;
   try {
     const response = await axios.get(
-      "https://www.asaas.com/api/v3/payments",
+      `https://www.asaas.com/api/v3/payments?customer=${customerId}&limit=100`,
       {
         headers: {
           "Content-Type": "application/json",
           access_token: apiKey,
         },
-        data: req.body,
       }
     );
 
