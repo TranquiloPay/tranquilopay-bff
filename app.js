@@ -205,14 +205,14 @@ const validateRegistration = async (req, res, next) => {
 
 // Create Customer in Asaas
 const createCustomer = async (req, res, next) => {
-  const { name, cpfCnpj, email } = req.body;
+  const { name, cpf, email } = req.body;
 
   try {
     const response = await axios.post(
       "https://www.asaas.com/api/v3/customers",
       {
         name,
-        cpfCnpj,
+        cpfCnpj: cpf,
         email,
       },
       {
@@ -227,7 +227,7 @@ const createCustomer = async (req, res, next) => {
     next();
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ msg: "Ocorreu um erro ao criar o cliente." });
+    return res.status(error.status).json({ msg: "Ocorreu um erro ao criar o cliente." });
   }
 };
 
@@ -290,7 +290,7 @@ app.get("/customers", async (req, res) => {
       }
     );
 
-    res.status(200).json({
+    res.status(response.status).json({
       msg: response.data.totalCount
         ? "CPF já cadastrado!"
         : "CPF não cadastrado!",
@@ -299,7 +299,31 @@ app.get("/customers", async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    res.status(500).json({
+    res.status(error.status).json({
+      msg: error.message,
+    });
+  }
+});
+
+// Get all payments from Asaas by Customer ID
+app.get("/payments", async (req, res) => {
+  const { customerId } = req.query;
+  try {
+    const response = await axios.get(
+      `https://www.asaas.com/api/v3/payments?customer=${customerId}&limit=100`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          access_token: apiKey,
+        },
+      }
+    );
+
+    res.status(response.status).json({
+      billings: response.data,
+    });
+  } catch (error) {
+    res.status(error.status).json({
       msg: error.message,
     });
   }
@@ -437,14 +461,14 @@ app.post("/payments", async (req, res) => {
       }
     );
 
-    res.status(200).json({
+    res.status(response.status).json({
       msg: "Débito criado com sucesso!",
       url: response.data.invoiceUrl,
       data: response.data,
     });
   } catch (error) {
     console.log(error);
-    res.status(500).json({
+    res.status(error.status).json({
       msg: error.message,
     });
   }
@@ -552,7 +576,7 @@ const dbPassword = process.env.DB_PASS;
 const apiKey = process.env.API_KEY;
 
 // Port Heroku
-const port = 3000; // 3000;
+const port = process.env.PORT; // 3000;
 
 // Connect to MongoDB //
 mongoose
