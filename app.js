@@ -510,7 +510,7 @@ app.post("/auth/forgot_password", async (req, res) => {
         subject: "Recuperação de acesso",
         from: "tranquilopay@gmail.com",
         template: "auth/forgot_password",
-        context: { token },
+        context: { token, email },
       },
       (err) => {
         if (err)
@@ -531,7 +531,7 @@ app.post("/auth/forgot_password", async (req, res) => {
 
 // Cadastro da nova senha
 app.post("/auth/reset_password", async (req, res) => {
-  const { email, token, password } = req.body;
+  const { email, token, password, confirmpassword } = req.body;
 
   try {
     const user = await User.findOne({ email }).select(
@@ -553,6 +553,10 @@ app.post("/auth/reset_password", async (req, res) => {
       return res.status(400).send({
         error: "O tokken informado está espirado, por favor gere um novo",
       });
+
+      if (password !== confirmpassword) {
+        return res.status(422).json({ msg: "As senhas não conferem!" });
+      }
 
     user.password = password;
 
